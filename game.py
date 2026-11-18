@@ -35,6 +35,11 @@ class Direction(Enum):
     DOWN = (0, 1)
     LEFT = (-1, 0)
 
+    def move_from(self, position: Position) -> Position:
+        x, y = position
+        dx, dy = self.value
+        return x + dx, y + dy
+
 
 class State(Enum):
     PLAYING = "playing"
@@ -64,13 +69,15 @@ class Game:
     def score(self) -> int:
         return (self.total_dots - len(self.dots)) * POINTS_PER_DOT
 
-    def _destination(self, direction: Direction) -> Position:
-        x, y = self.player
-        dx, dy = direction.value
-        return x + dx, y + dy
+    @property
+    def next_ghost_position(self) -> Position:
+        """Return the ghost's position after the next tick if play continues."""
+        next_tick = self._ticks + 1
+        patrol_index = (next_tick // GHOST_STEP_INTERVAL) % len(GHOST_PATROL)
+        return GHOST_PATROL[patrol_index]
 
     def can_move(self, direction: Direction) -> bool:
-        return self._destination(direction) not in self.walls
+        return direction.move_from(self.player) not in self.walls
 
     def step(self, direction: Direction | None) -> None:
         """Advance one tick. A blocked move or None leaves the player in place."""
@@ -78,7 +85,7 @@ class Game:
             return
 
         if direction is not None:
-            destination = self._destination(direction)
+            destination = direction.move_from(self.player)
             if destination not in self.walls:
                 self.player = destination
 
@@ -87,9 +94,8 @@ class Game:
             self.state = State.LOST
             return
 
+        self.ghost = self.next_ghost_position
         self._ticks += 1
-        patrol_index = (self._ticks // GHOST_STEP_INTERVAL) % len(GHOST_PATROL)
-        self.ghost = GHOST_PATROL[patrol_index]
         if self.player == self.ghost:
             self.state = State.LOST
             return
